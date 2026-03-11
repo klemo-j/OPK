@@ -7,4 +7,6 @@ add_executable(zadanie1 main.cpp
         src/Robot.cpp
         src/Environment.cpp
         src/Geometry.cpp
-        src/Lidar.cpp)
+        src/Lidar.cpp
+        src/Trajectory.cpp
+        include/Trajectory.hpp)
