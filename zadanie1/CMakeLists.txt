@@ -4,4 +4,7 @@ project(zadanie1)
 set(CMAKE_CXX_STANDARD 20)
 
 add_executable(zadanie1 main.cpp
-        src/robot.cpp)
+        src/Robot.cpp
+        src/Environment.cpp
+        src/Geometry.cpp
+        src/Lidar.cpp)
