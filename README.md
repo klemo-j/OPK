@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="pic/opk-map.png" alt="Mapa prostredia" width="80%">
+  <img src="zadanie1/pic/opk-map.png" alt="Mapa prostredia" width="80%">
   <br>
   <em>Čierny pixel (hodnota 0) predstavuje prekážku, biely pixel (hodnota 255) je voľný priestor.</em>
 </p>
