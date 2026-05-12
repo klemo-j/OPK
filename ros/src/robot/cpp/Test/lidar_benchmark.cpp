@@ -1,111 +1,91 @@
-// Benchmark lidar skenu – meria čas DDA vs. referenčná step-based implementácia.
-// Cieľ: DDA sken 360 lúčov max_range=5 m < 5 ms (cieľ je ~50× rýchlejší ako step-based).
-
 #include <chrono>
 #include <cmath>
-#include <cstdio>
-#include <stdexcept>
-#include <vector>
+#include <gtest/gtest.h>
 
-#include "environment/Lidar.hpp"
 #include "environment/GameEnvironment.hpp"
+#include "environment/Lidar.hpp"
 #include "types/Geometry.hpp"
 
-static constexpr int WARMUP_SCANS = 20;
-static constexpr int BENCH_SCANS  = 500;
+// ── Spoločná fixtures ─────────────────────────────────────────────────────────
 
-// Step-based referenčný sken (pôvodná implementácia)
-std::vector<double> scanStepBased(
-    const geometry::RobotState& state,
-    const lidar::Config& cfg,
-    environment::Environment& env)
-{
-    std::vector<double> ranges(cfg.beam_count, cfg.max_range);
-    const double angle_step = (cfg.beam_count > 1)
-        ? (cfg.last_ray_angle - cfg.first_ray_angle) / (cfg.beam_count - 1)
-        : 0.0;
-    const double step_size = 0.025;
+class LidarTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        auto cfg = environment::loadConfigFromYaml(
+            "src/robot/cpp/config/environment.yaml");
+        env_ = std::make_shared<environment::GameEnvironment>(cfg);
 
-    for (int i = 0; i < cfg.beam_count; ++i) {
-        double angle = state.theta + cfg.first_ray_angle + i * angle_step;
-        for (double r = step_size; r <= cfg.max_range; r += step_size) {
-            double px = state.x + r * std::cos(angle);
-            double py = state.y + r * std::sin(angle);
-            if (env.isOccupied(px, py)) {
-                ranges[i] = r;
-                break;
-            }
-        }
+        lidar_cfg_.beam_count      = 360;
+        lidar_cfg_.max_range       = 5.0;
+        lidar_cfg_.first_ray_angle = -M_PI;
+        lidar_cfg_.last_ray_angle  =  M_PI;
+
+        lidar_ = std::make_unique<lidar::Lidar>(lidar_cfg_, env_);
+        state_ = geometry::RobotState{-7.0, 6.0, 0.0, {0.0, 0.0}};
     }
-    return ranges;
+
+    std::shared_ptr<environment::GameEnvironment> env_;
+    lidar::Config lidar_cfg_;
+    std::unique_ptr<lidar::Lidar> lidar_;
+    geometry::RobotState state_;
+
+    // Zmeria priemerný čas jedného skenu cez N opakovaní
+    double avgScanMs(int n) {
+        using Clock = std::chrono::steady_clock;
+        using Ms    = std::chrono::duration<double, std::milli>;
+
+        // Warmup – vyhrejeme cache
+        for (int i = 0; i < 10; ++i) {
+            state_.theta += 0.01;
+            lidar_->scan(state_);
+        }
+
+        auto t0 = Clock::now();
+        for (int i = 0; i < n; ++i) {
+            state_.theta += 0.01;
+            lidar_->scan(state_);
+        }
+        return Ms(Clock::now() - t0).count() / n;
+    }
+};
+
+// ── Testy ─────────────────────────────────────────────────────────────────────
+
+// Jeden sken musí trvať menej ako 50 ms
+TEST_F(LidarTest, SkenTrvaMaximalne50ms) {
+    double ms = avgScanMs(100);
+    EXPECT_LT(ms, 50.0)
+        << "Priemerny cas skenu: " << ms << " ms (limit: 50 ms)";
 }
 
-int main() {
-    const std::string config_path = "src/robot/cpp/config/environment.yaml";
+// Výstup má správny počet lúčov
+TEST_F(LidarTest, VrataSprávnyPocetLucov) {
+    auto ranges = lidar_->scan(state_);
+    EXPECT_EQ(static_cast<int>(ranges.size()), lidar_cfg_.beam_count);
+}
 
-    environment::GameEnvironmentConfig cfg;
-    try {
-        cfg = environment::loadConfigFromYaml(config_path);
-    } catch (const std::exception& e) {
-        std::fprintf(stderr, "YAML chyba: %s\n", e.what());
-        return 1;
+// Každá vzdialenosť je v rozsahu [0, max_range]
+TEST_F(LidarTest, VzdialenostiSuVRozsahu) {
+    auto ranges = lidar_->scan(state_);
+    for (int i = 0; i < static_cast<int>(ranges.size()); ++i) {
+        EXPECT_GE(ranges[i], 0.0)         << "Luc " << i << " je zaporny";
+        EXPECT_LE(ranges[i], lidar_cfg_.max_range) << "Luc " << i << " prekracuje max_range";
     }
+}
 
-    auto env = std::make_shared<environment::GameEnvironment>(cfg);
-
-    lidar::Config lidar_cfg;
-    lidar_cfg.beam_count      = 360;
-    lidar_cfg.max_range       = 5.0;
-    lidar_cfg.first_ray_angle = -M_PI;
-    lidar_cfg.last_ray_angle  =  M_PI;
-
-    lidar::Lidar lidar(lidar_cfg, env);
-
-    // Robot v strede mapy
-    geometry::RobotState state{-7.0, 6.0, 0.0, {0.0, 0.0}};
-
-    using Clock = std::chrono::steady_clock;
-    using Ms    = std::chrono::duration<double, std::milli>;
-
-    // ── DDA benchmark ─────────────────────────────────────────────────────────
-    for (int i = 0; i < WARMUP_SCANS; ++i) {
-        state.theta += 0.01;
-        lidar.scan(state);
+// Nie všetky lúče môžu byť max_range – robot je obklopený stenami
+TEST_F(LidarTest, NieVsetkyLuceMaxRange) {
+    auto ranges = lidar_->scan(state_);
+    int hits = 0;
+    for (double r : ranges) {
+        if (r < lidar_cfg_.max_range) ++hits;
     }
+    EXPECT_GT(hits, 0) << "Ziaden luc netrafil stenu – lidar nejde";
+}
 
-    auto t0_dda = Clock::now();
-    for (int i = 0; i < BENCH_SCANS; ++i) {
-        state.theta += 0.01;
-        lidar.scan(state);
-    }
-    double dda_ms = Ms(Clock::now() - t0_dda).count() / BENCH_SCANS;
+// ── Main ──────────────────────────────────────────────────────────────────────
 
-    // ── Step-based benchmark ──────────────────────────────────────────────────
-    for (int i = 0; i < WARMUP_SCANS; ++i) {
-        state.theta += 0.01;
-        scanStepBased(state, lidar_cfg, *env);
-    }
-
-    auto t0_step = Clock::now();
-    for (int i = 0; i < BENCH_SCANS; ++i) {
-        state.theta += 0.01;
-        scanStepBased(state, lidar_cfg, *env);
-    }
-    double step_ms = Ms(Clock::now() - t0_step).count() / BENCH_SCANS;
-
-    // ── Výsledky ─────────────────────────────────────────────────────────────
-    std::printf("\n=== LIDAR BENCHMARK (%d skenov, %d lúčov, max_range=%.1f m) ===\n\n",
-                BENCH_SCANS, lidar_cfg.beam_count, lidar_cfg.max_range);
-    std::printf("  DDA (optimalizovaný):    %6.2f ms / sken\n", dda_ms);
-    std::printf("  Step-based (originál):   %6.2f ms / sken\n", step_ms);
-    std::printf("  Zrychlenie:              %.1fx\n\n", step_ms / dda_ms);
-
-    const double target_ms = 50.0;
-    if (dda_ms < target_ms) {
-        std::printf("  [PASS]  DDA sken %.2f ms < %.0f ms (ciel)\n\n", dda_ms, target_ms);
-        return 0;
-    } else {
-        std::printf("  [FAIL]  DDA sken %.2f ms >= %.0f ms (ciel)\n\n", dda_ms, target_ms);
-        return 1;
-    }
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

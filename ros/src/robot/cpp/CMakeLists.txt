@@ -29,9 +29,11 @@ install(DIRECTORY include/
 )
 
 
+find_package(GTest REQUIRED)
+
 add_executable(lidar_benchmark Test/lidar_benchmark.cpp)
 target_include_directories(lidar_benchmark PRIVATE include)
-target_link_libraries(lidar_benchmark robot_lib)
+target_link_libraries(lidar_benchmark robot_lib GTest::GTest GTest::Main)
 
 # Toto nemazat, v pripade ak to zmazete, github classroom nebude fungovat
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/hidden_tests/CMakeLists.txt)
