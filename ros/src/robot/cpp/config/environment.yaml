@@ -1,0 +1,79 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Konfigurácia hry – Robotický vysávač (Duel mód)
+# Mapa: 1536x1024 px @ 0.02 m/px = 30.72 x 20.48 m
+# Svet je vycentrovaný okolo (0,0).
+# ─────────────────────────────────────────────────────────────────────────────
+
+map:
+  filename: "/home/kllemo/Desktop/OPK/ros/src/robot/cpp/config/resources/opk-map.png"
+  resolution: 0.02
+
+robot:
+  radius: 0.20
+  max_capacity: 5
+
+# Štartovacie pozície hráčov pre duel
+players:
+  p1:
+    x: -7.0
+    y:  6.0
+    theta: 0.0
+  p2:
+    x: -5.0
+    y:  6.0
+    theta: 3.14159
+
+# Stanica – spoločná pre oboch
+station:
+  x: -8.0
+  y:  6.0
+  radius: 0.6
+
+# Prekážky
+obstacles:
+  - type: circle
+    x: -7.0
+    y:  3.0
+    radius: 0.4
+
+  - type: circle
+    x:  6.0
+    y:  4.0
+    radius: 0.5
+
+  - type: rectangle
+    x: -3.0
+    y:  5.0
+    width: 1.5
+    height: 1.0
+
+  - type: rectangle
+    x:  8.0
+    y: -5.0
+    width: 1.5
+    height: 1.0
+
+  - type: circle
+    x: -10.0
+    y: -3.0
+    radius: 0.4
+
+  - type: rectangle
+    x:  3.0
+    y: -3.0
+    width: 1.0
+    height: 1.5
+
+# Odpadky
+waste:
+  radius_min: 0.15
+  radius_max: 0.25
+  types:
+    - paper
+    - plastic
+    - glass
+
+# Nastavenia hry
+game:
+  duration_sec: 60
+  initial_count: 15
