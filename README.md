@@ -1287,10 +1287,4 @@ Pred odovzdaním/skúškou skontroluj:
 
 ---
 
-<div align="center">
 
-**📚 Veľa šťastia na skúške OPK! 🚀**
-
-Made with ☕ and 🤖
-
-</div>
